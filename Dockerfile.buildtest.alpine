@@ -1,0 +1,7 @@
+FROM alpine:latest
+
+WORKDIR /src
+COPY . /src
+RUN apk --update add alpine-sdk autoconf libtool automake linux-headers
+RUN ./autogen.sh && ./configure
+RUN make -j$((`nproc`+1))
