@@ -1,0 +1,24 @@
+name: Container Buildtest
+
+on:
+  push:
+    branches:
+      - master
+      - exfat-next
+      - next-docker-musl-build
+  pull_request:
+    branches:
+      - master
+      - exfat-next
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Buildah Build with Alpine Latest
+        uses: redhat-actions/buildah-build@v2
+        with:
+          image: "buildtest-alpine"
+          containerfiles: |
+            ./Dockerfile.buildtest.alpine
