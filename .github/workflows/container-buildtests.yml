@@ -5,6 +5,7 @@ on:
     branches:
       - master
       - exfat-next
+      - next-add-clang-build-check
   pull_request:
     branches:
       - master
@@ -43,6 +44,8 @@ jobs:
           ./autogen.sh && ./configure
       - name: Build
         run:  make -j$((`nproc`+1))
+      - name: readelf check
+        run: readelf --string-dump .comment mkfs/mkfs.exfat
       - name: Install
         run: make install
       - name: run fsck repair testcases
