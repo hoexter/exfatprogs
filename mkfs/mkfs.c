@@ -349,7 +349,15 @@ static int exfat_create_root_dir(struct exfat_blk_dev *bd,
 {
 	struct exfat_dentry ed[4] = {0};
 	int dentries_len = sizeof(ed);
-	int nbytes;
+	int nbytes, ret;
+
+	ret = exfat_write_zero(bd->dev_fd, ui->cluster_size,
+			finfo.root_byte_off);
+        if (ret) {
+                exfat_err("zero out write failed for root dir (errno : %d)\n",
+				errno);
+                return ret;
+        }
 
 	/* Set volume label entry */
 	ed[0].type = EXFAT_VOLUME;
@@ -530,21 +538,18 @@ static int exfat_zero_out_disk(struct exfat_blk_dev *bd,
 		struct exfat_user_input *ui)
 {
 	int ret;
-	unsigned long long size;
 
 	if (ui->quick)
-		size = finfo.root_byte_off + ui->cluster_size;
-	else
-		size = bd->size;
+		return 0;
 
-	ret = exfat_write_zero(bd->dev_fd, size, 0);
+	ret = exfat_write_zero(bd->dev_fd, bd->size, 0);
 	if (ret) {
 		exfat_err("write failed(errno : %d)\n", errno);
 		return ret;
 	}
 
-	exfat_debug("zero out written size : %llu, disk size : %llu\n",
-		size, bd->size);
+	exfat_debug("zero out written size : %llu\n",
+		bd->size);
 	return 0;
 }
 
