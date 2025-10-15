@@ -995,12 +995,14 @@ static int read_bitmap(struct exfat *exfat)
 			DIV_ROUND_UP(exfat->clus_count, 8)) {
 		exfat_err("invalid size of allocation bitmap. 0x%" PRIx64 "\n",
 				le64_to_cpu(dentry->bitmap_size));
-		return -EINVAL;
+		retval = -EINVAL;
+		goto out;
 	}
 	if (!exfat_heap_clus(exfat, le32_to_cpu(dentry->bitmap_start_clu))) {
 		exfat_err("invalid start cluster of allocate bitmap. 0x%x\n",
 				le32_to_cpu(dentry->bitmap_start_clu));
-		return -EINVAL;
+		retval = -EINVAL;
+		goto out;
 	}
 
 	exfat->disk_bitmap_clus = le32_to_cpu(dentry->bitmap_start_clu);
@@ -1010,14 +1012,14 @@ static int read_bitmap(struct exfat *exfat)
 			       le32_to_cpu(dentry->bitmap_start_clu),
 			       DIV_ROUND_UP(exfat->disk_bitmap_size,
 					    exfat->clus_size));
-	free(filter.out.dentry_set);
-
 	if (exfat_read(exfat->blk_dev->dev_fd, exfat->disk_bitmap,
 			exfat->disk_bitmap_size,
 			exfat_c2o(exfat, exfat->disk_bitmap_clus)) !=
 			(ssize_t)exfat->disk_bitmap_size)
-		return -EIO;
-	return 0;
+		retval = -EIO;
+out:
+	free(filter.out.dentry_set);
+	return retval;
 }
 
 static int decompress_upcase_table(const __le16 *in_table, size_t in_len,
@@ -1275,6 +1277,57 @@ out:
 	return retval;
 }
 
+/*
+ * Checks whether there are other directory entries following the unused
+ * directory entries. If so, sets the unused directory entries to the deleted
+ * directory entries(Type 0x7F).
+ */
+static int check_unused_dentry(struct exfat_de_iter *de_iter,
+		struct exfat_inode *dir)
+{
+	int ret, i;
+	struct exfat_dentry *dentry;
+	int num_unused = 1;
+
+	while (1) {
+		exfat_de_iter_advance(de_iter, 1);
+		ret = exfat_de_iter_get(de_iter, 0, &dentry);
+		if (ret == EOF)
+			return 0;
+		else if (ret) {
+			fsck_err(dir->parent, dir,
+				"failed to get a dentry. %d\n", ret);
+			return ret;
+		}
+
+		if (dentry->type != EXFAT_LAST)
+			break;
+
+		num_unused++;
+	}
+
+	if (!repair_file_ask(de_iter, NULL, ER_DE_UNUSED,
+			    "other entry(type: 0x%02X) follows unused entry",
+			    dentry->type))
+		return -EINVAL;
+
+	ret = exfat_de_iter_revert(de_iter, num_unused);
+	if (ret < 0) {
+		fsck_err(dir->parent, dir,
+			"failed to revert %d dentries. %d\n", num_unused, ret);
+		return ret;
+	}
+
+	for (i = 0; i < num_unused; i++) {
+		exfat_de_iter_get_dirty(de_iter, 0, &dentry);
+		dentry->type = EXFAT_DELETE;
+		if (i != num_unused - 1)
+			exfat_de_iter_advance(de_iter, 1);
+	}
+
+	return 1;
+}
+
 static int read_children(struct exfat_fsck *fsck, struct exfat_inode *dir)
 {
 	struct exfat *exfat = fsck->exfat;
@@ -1331,6 +1384,15 @@ static int read_children(struct exfat_fsck *fsck, struct exfat_inode *dir)
 			}
 			break;
 		case EXFAT_LAST:
+			ret = check_unused_dentry(de_iter, dir);
+			if (ret < 0) {
+				exfat_stat.error_count++;
+				break;
+			} else if (ret) {
+				exfat_stat.error_count++;
+				exfat_stat.fixed_count++;
+				break;
+			}
 			goto out;
 		case EXFAT_VOLUME:
 		case EXFAT_BITMAP:

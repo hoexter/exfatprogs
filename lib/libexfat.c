@@ -189,8 +189,6 @@ int exfat_get_blk_dev_info(struct exfat_user_input *ui,
 
 	if (ui->sector_size)
 		bd->sector_size = ui->sector_size;
-	else if (ioctl(fd, BLKPBSZGET, &bd->sector_size) >= 0)
-		;
 	else if (ioctl(fd, BLKSSZGET, &bd->sector_size) < 0)
 		bd->sector_size = DEFAULT_SECTOR_SIZE;
 	bd->sector_size_bits = sector_size_bits(bd->sector_size);
@@ -904,6 +902,30 @@ int exfat_get_next_clus(struct exfat *exfat, clus_t clus, clus_t *next)
 			!= sizeof(*next))
 		return -EIO;
 	*next = le32_to_cpu(*next);
+	return 0;
+}
+
+int exfat_get_clus(struct exfat *exfat, struct exfat_inode *node,
+		clus_t index, clus_t *ret_clu)
+{
+	int ret;
+	clus_t clu = node->first_clus;
+
+	if (node->is_contiguous) {
+		*ret_clu = clu + index;
+		return 0;
+	}
+
+	while (index) {
+		ret = exfat_get_next_clus(exfat, clu, &clu);
+		if (ret)
+			return ret;
+
+		index--;
+	}
+
+	*ret_clu = clu;
+
 	return 0;
 }
 
