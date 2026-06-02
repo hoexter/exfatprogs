@@ -9,6 +9,7 @@ on:
     branches:
       - master
       - exfat-next
+      - ci-updates
     paths-ignore:
       - '**.md'
       - 'NEWS'
@@ -16,6 +17,7 @@ on:
     branches:
       - master
       - exfat-next
+      - ci-updates
     paths-ignore:
       - '**.md'
       - 'NEWS'

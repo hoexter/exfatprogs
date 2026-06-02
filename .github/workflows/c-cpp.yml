@@ -8,6 +8,7 @@ on:
     branches:
       - master
       - exfat-next
+      - ci-updates
     paths-ignore:
       - 'manpages/**'
       - '**.md'
@@ -17,6 +18,7 @@ on:
     branches:
       - master
       - exfat-next
+      - ci-updates
     paths-ignore:
       - 'manpages/**'
       - '**.md'
