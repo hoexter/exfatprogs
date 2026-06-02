@@ -1,5 +1,7 @@
 AC_PREREQ([2.70])
 
+# Dummy change which should trigger a full build of everything
+
 m4_define([exfat_progs_version], m4_esyscmd_s(
 	 grep "define EXFAT_PROGS_VERSION " include/version.h | \
 		 awk '{print $3}' | sed 's/\"//g'))
